@@ -332,7 +332,8 @@ function bookView() {
     Array.from({ length: max }, (_, i) => '<option>' + (i + 1) + '</option>').join('') + '</select></div><div></div></div>' +
     '<label>備註 <span class="opt">（選填，例：輪椅、帶外食）</span></label><input id="b_note" maxlength="100">' +
     '<button class="btn" id="b_go"' + (S.slot ? '' : ' disabled') + '>確認預約</button>' +
-    '<div class="hint">時段開始前 ' + (S.me.cutoffHours || 2) + ' 小時截止；預約後可在「我的預約」取消或改期。</div></div>';
+    '<div class="hint">時段開始前 ' + (S.me.cutoffHours || 2) + ' 小時截止；當天的預約只受理到 ' + (S.me.sameDayCutoff || '08:00') +
+    '，之後請直接與機構聯繫。預約後可在「我的預約」取消或改期。</div></div>';
   return h;
 }
 
@@ -392,6 +393,8 @@ function mineView() {
       (off ? '<span class="tag wait">已取消</span>' : '') + '</div>' +
       '<div class="who">' + esc(b.resident) + '　' + b.visitors + ' 位' + (b.note ? '（' + esc(b.note) + '）' : '') + '<br>編號 ' + esc(b.id) + '</div>' +
       (off ? '<div class="msg err" style="margin:10px 0 0">' + esc(b.cancelReason || '已由機構取消') + '，請改選其他時段，造成不便敬請見諒。</div>' :
+        b.locked ? '<div class="msg alert" style="margin:10px 0 0">當天預約已無法線上變更，如無法前來，請來電告知' +
+          (S.me.tel ? '：<a href="tel:' + esc(S.me.tel.replace(/[^\d#]/g, '')) + '">' + esc(S.me.tel) + '</a>' : '') + '。</div>' :
         '<div class="acts"><button class="btn ghost" data-move="' + esc(b.id) + '">改期</button>' +
         '<button class="btn warn" data-cancel="' + esc(b.id) + '">取消</button></div>') + '</div>';
   }).join('');
