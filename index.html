@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>探視預約</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  :root {
+    --bg: #f2f7f9; --card: #ffffff; --ink: #1f2f3a; --sub: #5e7280; --line: #d6e3ea;
+    --main: #2f6f8a; --main-2: #4f97ad; --soft: #e2f0f4; --warn: #a1532f; --warn-bg: #fbeee6;
+    --ok: #2d6a55; --ok-bg: #e3f3ec; --dis: #b9c6cd;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; -webkit-text-size-adjust: 100%; }
+  header { background: var(--main); color: #fff; padding: 14px 16px 12px; }
+  header .org { font-size: 14px; opacity: .85; }
+  header h1 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: 1px; }
+  main { padding: 12px 14px 40px; max-width: 560px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  h2 { font-size: 18px; margin: 0 0 8px; color: var(--main); }
+  .tabs { display: flex; background: var(--soft); border-radius: 10px; padding: 4px; margin-bottom: 12px; }
+  .tabs button { flex: 1; border: 0; background: transparent; padding: 10px 4px; font: inherit; font-weight: 600; color: var(--sub); border-radius: 8px; }
+  .tabs button.on { background: var(--card); color: var(--main); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  label { display: block; font-weight: 600; margin: 12px 0 4px; }
+  label .opt { font-weight: 400; color: var(--sub); font-size: 14px; }
+  input, select { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
+  input:focus, select:focus { outline: 2px solid var(--main-2); border-color: transparent; }
+  .btn { display: block; width: 100%; margin-top: 16px; padding: 13px; border: 0; border-radius: 10px; background: var(--main); color: #fff; font: inherit; font-weight: 700; font-size: 18px; }
+  .btn:disabled { background: var(--dis); }
+  .btn.ghost { background: #fff; color: var(--main); border: 1px solid var(--main); }
+  .btn.warn { background: var(--warn); }
+  .row { display: flex; gap: 8px; } .row > * { flex: 1; }
+  .hint { color: var(--sub); font-size: 14px; margin-top: 4px; }
+  .msg { border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; white-space: pre-wrap; }
+  .msg.ok { background: var(--ok-bg); color: var(--ok); } .msg.err { background: var(--warn-bg); color: var(--warn); } .msg.info { background: var(--soft); color: var(--main); }
+  .people { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 14px; font: inherit; color: var(--ink); }
+  .chip.on { background: var(--main); border-color: var(--main); color: #fff; }
+  .dates { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; -webkit-overflow-scrolling: touch; }
+  .date { flex: 0 0 66px; border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 8px 0; text-align: center; font: inherit; color: var(--ink); }
+  .date b { display: block; font-size: 18px; } .date small { font-size: 13px; color: var(--sub); }
+  .date.on { background: var(--main); border-color: var(--main); color: #fff; } .date.on small { color: #e6f2f6; }
+  .date:disabled { background: #eef2f4; color: var(--dis); } .date:disabled small { color: var(--dis); }
+  .slots { display: grid; gap: 8px; }
+  .slot { display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 12px 14px; font: inherit; color: var(--ink); text-align: left; }
+  .slot .t { font-weight: 700; font-size: 18px; } .slot .n { font-size: 14px; color: var(--sub); }
+  .slot.on { border: 2px solid var(--main); background: var(--soft); }
+  .slot:disabled { background: #f1f4f6; color: var(--dis); } .slot:disabled .n { color: var(--dis); }
+  .bk { border-left: 4px solid var(--main-2); }
+  .bk .when { font-size: 19px; font-weight: 700; }
+  .bk .who { color: var(--sub); }
+  .bk .acts { display: flex; gap: 8px; } .bk .acts .btn { margin-top: 10px; padding: 10px; font-size: 16px; }
+  .tag { display: inline-block; font-size: 13px; padding: 1px 8px; border-radius: 999px; background: var(--soft); color: var(--main); margin-left: 6px; vertical-align: 2px; }
+  .tag.wait { background: var(--warn-bg); color: var(--warn); }
+  details { margin-top: 12px; font-size: 14px; color: var(--sub); }
+  details summary { color: var(--main); }
+  .check { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; font-weight: 400; }
+  .check input { width: 22px; height: 22px; flex: 0 0 22px; margin-top: 2px; }
+  .link { background: none; border: 0; color: var(--main); font: inherit; text-decoration: underline; padding: 8px 0; }
+  .mask { position: fixed; inset: 0; background: rgba(20,40,50,.45); display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
+  .sheet { background: var(--bg); width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 16px 14px 28px; }
+  .center { text-align: center; color: var(--sub); padding: 40px 0; }
+  .spin { width: 34px; height: 34px; border: 4px solid var(--soft); border-top-color: var(--main); border-radius: 50%; margin: 0 auto 12px; animation: s 1s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  .hide { display: none !important; }
+</style>
+</head>
+<body>
+<header><div class="org" id="org">芊馨園護理之家</div><h1>探視預約</h1></header>
+<main id="app"><div class="center"><div class="spin"></div>載入中…</div></main>
+<div id="layer"></div>
+
+<script>
+/* ===== 設定（上架前填寫） ===== */
+const LIFF_ID = '';   // LINE Developers > LIFF 的 LIFF ID，例如 2001234567-AbCdEfGh
+const API_URL = '';   // Apps Script 部署網址（結尾 /exec）
+/* ============================== */
+
+// 測試模式：網址加 ?dev=U測試帳號（後端 DEV_MODE=true 時才有效，上線前請關閉後端 DEV_MODE）
+const QS = new URLSearchParams(location.search);
+const DEV_UID = QS.get('dev');
+const API = QS.get('api') || API_URL;
+
+const S = { me: null, days: null, canChat: false, tab: 'book', bed: '', date: '', slot: '', flash: null };
+const app = document.getElementById('app');
+const layer = document.getElementById('layer');
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function api(action, data) {
+  const body = Object.assign({ action: action }, data || {});
+  if (DEV_UID) body.testUserId = DEV_UID; else body.idToken = liff.getIDToken();
+  let res;
+  try {
+    const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+    res = await r.json();
+  } catch (e) {
+    throw new Error('網路連線不穩，請稍後再試');
+  }
+  if (!res.ok) throw new Error(res.error || '系統忙碌中，請稍後再試');
+  return res;
+}
+
+function loading(text) { app.innerHTML = '<div class="center"><div class="spin"></div>' + esc(text || '處理中…') + '</div>'; }
+function fatal(text) { app.innerHTML = '<div class="msg err">' + esc(text) + '</div><button class="btn ghost" onclick="location.reload()">重新整理</button>'; }
+
+/* ---------- 啟動 ---------- */
+async function start() {
+  if (!API) return fatal('預約頁尚未設定完成，請洽社工。');
+  if (!DEV_UID) {
+    try {
+      await liff.init({ liffId: LIFF_ID });
+    } catch (e) {
+      return fatal('LINE 連線失敗，請關閉後重新開啟。');
+    }
+    if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+    const ctx = liff.getContext();
+    // 只有從官方帳號 1 對 1 聊天室開啟，才能在聊天室送出確認句（回覆訊息不計則數）
+    S.canChat = liff.isInClient() && !!ctx && ctx.type === 'utype' && liff.isApiAvailable && liff.isApiAvailable('sendMessages') !== false;
+  }
+  await reload();
+}
+
+async function reload(flash) {
+  if (flash !== undefined) S.flash = flash;
+  try {
+    S.me = await api('me');
+    document.getElementById('org').textContent = S.me.orgName || '芊馨園護理之家';
+    const ok = approved();
+    if (ok.length && !ok.some(b => b.bed === S.bed)) S.bed = ok[0].bed;
+    if (ok.length && !S.days) S.days = (await api('availability', { bed: S.bed })).days;
+    render();
+  } catch (e) {
+    fatal(e.message);
+  }
+}
+
+const approved = () => (S.me ? S.me.bindings.filter(b => b.status === '已核准') : []);
+const pending = () => (S.me ? S.me.bindings.filter(b => b.status === '待審核') : []);
+
+function render() {
+  const flash = S.flash ? '<div class="msg ' + S.flash.type + '">' + esc(S.flash.text) + '</div>' : '';
+  S.flash = null;
+  if (!approved().length || S.tab === 'bind') { app.innerHTML = flash + bindView(); bindEvents(); return; }
+  app.innerHTML = flash +
+    '<div class="tabs"><button data-tab="book" class="' + (S.tab === 'book' ? 'on' : '') + '">預約探視</button>' +
+    '<button data-tab="mine" class="' + (S.tab === 'mine' ? 'on' : '') + '">我的預約' + (S.me.bookings.length ? '（' + S.me.bookings.length + '）' : '') + '</button></div>' +
+    (S.tab === 'book' ? bookView() : mineView()) +
+    pendingView() +
+    '<button class="link" data-tab="bind">＋ 綁定其他住民</button>';
+  app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); window.scrollTo(0, 0); });
+  if (S.tab === 'book') bookEvents(); else mineEvents();
+}
+
+function pendingView() {
+  const p = pending();
+  if (!p.length) return '';
+  return '<div class="msg info">' + p.map(b => esc(b.resident) + ' 的綁定申請審核中，完成後會以 LINE 通知您').join('\n') + '</div>';
+}
+
+/* ---------- 綁定 ---------- */
+const PRIVACY = '芊馨園護理之家為辦理住民探視預約與聯繫，蒐集您的姓名、與住民的關係、手機號碼及 LINE 使用者識別碼。' +
+  '資料僅於本機構提供探視預約服務期間，在臺灣地區由本機構人員用於確認家屬身分、預約通知與聯繫，不提供給其他單位。' +
+  '您可以隨時向本機構社工請求查詢、閱覽、更正、停止利用或刪除您的資料。' +
+  '若不提供，將無法使用線上預約，仍可來電由櫃台代為預約。';
+
+function bindView() {
+  const first = !approved().length;
+  return '<div class="card"><h2>' + (first ? '第一次使用，請先綁定住民' : '綁定其他住民') + '</h2>' +
+    '<div class="hint">請填寫您登記在機構的手機號碼，系統會自動比對；比對不到時由社工審核。</div>' +
+    '<label>住民姓名</label><input id="f_res" autocomplete="off" placeholder="住民全名">' +
+    '<label>床號 <span class="opt">（選填，例 102-1）</span></label><input id="f_bed" inputmode="numeric" autocomplete="off">' +
+    '<label>您的姓名</label><input id="f_fam" autocomplete="name">' +
+    '<label>您與住民的關係</label><select id="f_rel"><option value="">請選擇</option>' +
+    ['兒子', '女兒', '媳婦', '女婿', '配偶', '孫子', '孫女', '兄弟姊妹', '其他親屬', '朋友'].map(x => '<option>' + x + '</option>').join('') +
+    '</select>' +
+    '<label>手機號碼</label><input id="f_tel" type="tel" inputmode="numeric" placeholder="09xx-xxx-xxx" autocomplete="tel">' +
+    '<details><summary>個人資料蒐集告知</summary><p>' + PRIVACY + '</p></details>' +
+    '<label class="check"><input type="checkbox" id="f_ok"><span>我已閱讀並同意個人資料蒐集告知</span></label>' +
+    '<button class="btn" id="f_go">送出</button>' +
+    (first ? '' : '<button class="btn ghost" data-tab="book">返回</button>') + '</div>' + pendingView();
+}
+
+function bindEvents() {
+  app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); });
+  const go = document.getElementById('f_go');
+  go.onclick = async () => {
+    const v = id => document.getElementById(id).value.trim();
+    if (!v('f_res') || !v('f_fam') || !v('f_rel') || !v('f_tel')) return toast('請把資料填寫完整');
+    if (!/^09\d{8}$/.test(v('f_tel').replace(/\D/g, ''))) return toast('手機號碼格式不正確（09 開頭 10 碼）');
+    if (!document.getElementById('f_ok').checked) return toast('請勾選同意個人資料蒐集告知');
+    go.disabled = true; go.textContent = '送出中…';
+    try {
+      const r = await api('bind', { resident: v('f_res'), bed: v('f_bed'), family: v('f_fam'), relation: v('f_rel'), phone: v('f_tel') });
+      S.tab = 'book'; S.days = null;
+      await reload({ type: r.status === '已核准' ? 'ok' : 'info', text: r.message });
+    } catch (e) {
+      go.disabled = false; go.textContent = '送出'; toast(e.message);
+    }
+  };
+}
+
+/* ---------- 選日期與時段（預約、改期共用） ---------- */
+function pickerHtml(prefix, date, slot) {
+  const days = S.days || [];
+  const d = days.find(x => x.date === date);
+  let h = '<label>日期</label><div class="dates">' + days.map(x => {
+    const any = x.slots.some(s => s.bookable);
+    const m = x.label.match(/^(\d+)\/(\d+)（(.)）/);
+    return '<button class="date' + (x.date === date ? ' on' : '') + '" data-' + prefix + 'date="' + x.date + '"' + (any ? '' : ' disabled') + '>' +
+      '<small>' + Number(m[1]) + '月</small><b>' + Number(m[2]) + '</b><small>週' + m[3] + '</small></button>';
+  }).join('') + '</div>';
+  if (d) {
+    h += '<label>時段</label><div class="slots">' + d.slots.filter(s => s.open || s.reason !== '此時段不開放').map(s =>
+      '<button class="slot' + (s.code === slot ? ' on' : '') + '" data-' + prefix + 'slot="' + s.code + '"' + (s.bookable ? '' : ' disabled') + '>' +
+      '<span class="t">' + esc(s.label.slice(2)) + '</span><span class="n">' + (s.bookable ? '剩 ' + s.left + ' 組' : esc(s.reason)) + '</span></button>').join('') + '</div>';
+  }
+  return h;
+}
+
+function firstOpenDate() { const d = (S.days || []).find(x => x.slots.some(s => s.bookable)); return d ? d.date : ''; }
+
+/* ---------- 預約 ---------- */
+function bookView() {
+  const list = approved();
+  const cur = list.find(b => b.bed === S.bed) || list[0];
+  if (!S.date || !(S.days || []).some(d => d.date === S.date && d.slots.some(s => s.bookable))) S.date = firstOpenDate();
+  let h = '<div class="card">';
+  if (list.length > 1) {
+    h += '<label style="margin-top:0">探視住民</label><div class="people">' +
+      list.map(b => '<button class="chip' + (b.bed === cur.bed ? ' on' : '') + '" data-bed="' + esc(b.bed) + '">' + esc(b.resident) + '</button>').join('') + '</div>';
+  } else {
+    h += '<h2>探視 ' + esc(cur.resident) + '</h2>';
+  }
+  if (cur.hospitalized) {
+    return h + '<div class="msg err" style="margin-top:12px">住民目前住院中，暫停探視預約。如需協助請洽社工。</div></div>';
+  }
+  if (!S.date) return h + '<div class="msg info" style="margin-top:12px">近期沒有可預約的時段。</div></div>';
+  h += pickerHtml('', S.date, S.slot);
+  const max = S.me.maxVisitors || 4;
+  h += '<div class="row"><div><label>人數</label><select id="b_n">' +
+    Array.from({ length: max }, (_, i) => '<option>' + (i + 1) + '</option>').join('') + '</select></div><div></div></div>' +
+    '<label>備註 <span class="opt">（選填，例：輪椅、帶外食）</span></label><input id="b_note" maxlength="100">' +
+    '<button class="btn" id="b_go"' + (S.slot ? '' : ' disabled') + '>確認預約</button>' +
+    '<div class="hint">時段開始前 ' + (S.me.cutoffHours || 2) + ' 小時截止；預約後可在「我的預約」取消或改期。</div></div>';
+  return h;
+}
+
+function bookEvents() {
+  app.querySelectorAll('[data-bed]').forEach(b => b.onclick = async () => {
+    S.bed = b.dataset.bed; S.slot = ''; render();
+  });
+  app.querySelectorAll('[data-date]').forEach(b => b.onclick = () => { S.date = b.dataset.date; S.slot = ''; keep(); render(); });
+  app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => { S.slot = b.dataset.slot; keep(); render(); });
+  const n = document.getElementById('b_n'), note = document.getElementById('b_note');
+  if (n && S.keep) { n.value = S.keep.n; note.value = S.keep.note; }
+  S.keep = null;
+  const go = document.getElementById('b_go');
+  if (!go) return;
+  go.onclick = async () => {
+    go.disabled = true; go.textContent = '預約中…';
+    try {
+      const r = await api('book', { bed: S.bed, date: S.date, slot: S.slot, visitors: n.value, note: note.value.trim(), viaChat: S.canChat });
+      await confirmInChat('預約', r.booking.id);
+      S.slot = ''; S.days = null; S.tab = 'mine';
+      await reload({ type: 'ok', text: '預約成功\n' + summary(r.booking) + (r.booking.lateHint ? '\n\n' + r.booking.lateHint : '') });
+    } catch (e) {
+      go.disabled = false; go.textContent = '確認預約'; toast(e.message);
+      S.days = (await api('availability', { bed: S.bed }).catch(() => ({ days: S.days }))).days; keep(); render();
+    }
+  };
+}
+
+// 切換日期、時段時保留已填的人數、備註
+function keep() {
+  const n = document.getElementById('b_n'), note = document.getElementById('b_note');
+  if (n) S.keep = { n: n.value, note: note.value };
+}
+
+function summary(b) {
+  return b.dateLabel + ' ' + b.slotLabel.slice(2) + '\n' + b.resident + '　' + b.visitors + ' 位' + (b.note ? '（' + b.note + '）' : '') + '\n編號 ' + b.id;
+}
+
+/* ---------- 我的預約 ---------- */
+function mineView() {
+  const list = S.me.bookings;
+  if (!list.length) return '<div class="card center" style="padding:28px 0">目前沒有預約</div>';
+  return list.map(b =>
+    '<div class="card bk"><div class="when">' + esc(b.dateLabel) + ' ' + esc(b.slotLabel.slice(2)) + '</div>' +
+    '<div class="who">' + esc(b.resident) + '　' + b.visitors + ' 位' + (b.note ? '（' + esc(b.note) + '）' : '') + '<br>編號 ' + esc(b.id) + '</div>' +
+    '<div class="acts"><button class="btn ghost" data-move="' + esc(b.id) + '">改期</button>' +
+    '<button class="btn warn" data-cancel="' + esc(b.id) + '">取消</button></div></div>').join('');
+}
+
+function mineEvents() {
+  app.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => cancelSheet(b.dataset.cancel));
+  app.querySelectorAll('[data-move]').forEach(b => b.onclick = () => moveSheet(b.dataset.move));
+}
+
+function sheet(html) {
+  layer.innerHTML = '<div class="mask"><div class="sheet">' + html + '</div></div>';
+  layer.querySelector('.mask').onclick = e => { if (e.target.classList.contains('mask')) closeSheet(); };
+}
+function closeSheet() { layer.innerHTML = ''; }
+
+function cancelSheet(id) {
+  const b = S.me.bookings.find(x => x.id === id);
+  sheet('<h2>確定取消這筆預約？</h2><div class="card">' + esc(summary(b)).replace(/\n/g, '<br>') + '</div>' +
+    '<button class="btn warn" id="c_go">確定取消</button><button class="btn ghost" id="c_no">不要取消</button>');
+  document.getElementById('c_no').onclick = closeSheet;
+  const go = document.getElementById('c_go');
+  go.onclick = async () => {
+    go.disabled = true; go.textContent = '取消中…';
+    try {
+      await api('cancel', { id: id, viaChat: S.canChat });
+      await confirmInChat('取消', id);
+      closeSheet(); S.days = null;
+      await reload({ type: 'ok', text: '已取消 ' + b.dateLabel + ' ' + b.slotLabel.slice(2) + ' 的預約' });
+    } catch (e) { closeSheet(); toast(e.message); }
+  };
+}
+
+async function moveSheet(id) {
+  const b = S.me.bookings.find(x => x.id === id);
+  const st = { date: '', slot: '' };
+  const binding = approved().find(x => x.resident === b.resident) || approved()[0];
+  try { S.days = (await api('availability', { bed: binding.bed })).days; } catch (e) { return toast(e.message); }
+  st.date = firstOpenDate();
+  const draw = () => {
+    sheet('<h2>改期</h2><div class="hint">原預約：' + esc(b.dateLabel + ' ' + b.slotLabel.slice(2)) + '</div>' +
+      pickerHtml('m', st.date, st.slot) +
+      '<button class="btn" id="m_go"' + (st.slot ? '' : ' disabled') + '>確認改期</button><button class="btn ghost" id="m_no">返回</button>');
+    layer.querySelectorAll('[data-mdate]').forEach(x => x.onclick = () => { st.date = x.dataset.mdate; st.slot = ''; draw(); });
+    layer.querySelectorAll('[data-mslot]').forEach(x => x.onclick = () => { st.slot = x.dataset.mslot; draw(); });
+    document.getElementById('m_no').onclick = closeSheet;
+    const go = document.getElementById('m_go');
+    go.onclick = async () => {
+      go.disabled = true; go.textContent = '改期中…';
+      try {
+        const r = await api('reschedule', { id: id, date: st.date, slot: st.slot, viaChat: S.canChat });
+        await confirmInChat('改期', r.booking.id);
+        closeSheet(); S.days = null;
+        await reload({ type: 'ok', text: '改期成功\n' + summary(r.booking) });
+      } catch (e) { go.disabled = false; go.textContent = '確認改期'; toast(e.message); }
+    };
+  };
+  draw();
+}
+
+/* ---------- 聊天室確認句：由家屬送出，系統以回覆訊息回明細（不計則數） ---------- */
+async function confirmInChat(kind, id) {
+  if (!S.canChat) return; // 外部瀏覽器開啟：不傳 LINE，只顯示在本頁
+  try {
+    await liff.sendMessages([{ type: 'text', text: kind + '確認 ' + id }]);
+  } catch (e) {
+    // 送不出時交給後端依「預約異動傳 LINE 給家屬」設定決定是否推送（預設不推）
+    api('confirmFallback', { kind: kind, id: id }).catch(() => {});
+  }
+}
+
+let toastTimer;
+function toast(text) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div'); t.id = 'toast'; t.className = 'msg err';
+    t.style.cssText = 'position:fixed;left:14px;right:14px;bottom:18px;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.15);max-width:532px;margin:0 auto';
+    document.body.appendChild(t);
+  }
+  t.textContent = text; t.classList.remove('hide');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('hide'), 4000);
+}
+
+start();
+</script>
+</body>
+</html>
