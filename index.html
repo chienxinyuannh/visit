@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>探視預約</title>
-<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
   :root {
     --bg: #f2f7f9; --card: #ffffff; --ink: #1f2f3a; --sub: #5e7280; --line: #d6e3ea;
@@ -65,33 +64,38 @@
   .spin { width: 34px; height: 34px; border: 4px solid var(--soft); border-top-color: var(--main); border-radius: 50%; margin: 0 auto 12px; animation: s 1s linear infinite; }
   @keyframes s { to { transform: rotate(360deg); } }
   .hide { display: none !important; }
+  .bk.off { border-left-color: var(--warn); opacity: .85; }
+  footer a { color: var(--main); }
+  footer { max-width: 560px; margin: 0 auto; padding: 0 14px 30px; color: var(--sub); font-size: 14px; }
 </style>
 </head>
 <body>
 <header><div class="org" id="org">芊馨園護理之家</div><h1>探視預約</h1></header>
 <main id="app"><div class="center"><div class="spin"></div>載入中…</div></main>
+<footer id="foot"></footer>
 <div id="layer"></div>
 
 <script>
 /* ===== 設定（上架前填寫） ===== */
-const LIFF_ID = '';   // LINE Developers > LIFF 的 LIFF ID，例如 2001234567-AbCdEfGh
 const API_URL = '';   // Apps Script 部署網址（結尾 /exec）
 /* ============================== */
 
-// 測試模式：網址加 ?dev=U測試帳號（後端 DEV_MODE=true 時才有效，上線前請關閉後端 DEV_MODE）
 const QS = new URLSearchParams(location.search);
-const DEV_UID = QS.get('dev');
-const API = QS.get('api') || API_URL;
+const API = QS.get('api') || API_URL;   // ?api= 僅供測試
+const KEY = 'cxy_visit_token';
 
-const S = { me: null, days: null, canChat: false, tab: 'book', bed: '', date: '', slot: '', flash: null };
+const S = { token: '', me: null, days: null, tab: 'book', bed: '', date: '', slot: '', flash: null, keep: null };
 const app = document.getElementById('app');
 const layer = document.getElementById('layer');
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/* 記住這支手機：登入代碼存在本機瀏覽器；無法存取時本次有效 */
+function loadToken() { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } }
+function saveToken(t) { try { if (t) localStorage.setItem(KEY, t); else localStorage.removeItem(KEY); } catch (e) {} }
+
 async function api(action, data) {
-  const body = Object.assign({ action: action }, data || {});
-  if (DEV_UID) body.testUserId = DEV_UID; else body.idToken = liff.getIDToken();
+  const body = Object.assign({ action: action, token: S.token }, data || {});
   let res;
   try {
     const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
@@ -99,42 +103,64 @@ async function api(action, data) {
   } catch (e) {
     throw new Error('網路連線不穩，請稍後再試');
   }
-  if (!res.ok) throw new Error(res.error || '系統忙碌中，請稍後再試');
+  if (!res.ok) {
+    const err = new Error(res.error || '系統忙碌中，請稍後再試');
+    err.code = res.code;
+    throw err;
+  }
   return res;
 }
 
-function loading(text) { app.innerHTML = '<div class="center"><div class="spin"></div>' + esc(text || '處理中…') + '</div>'; }
 function fatal(text) { app.innerHTML = '<div class="msg err">' + esc(text) + '</div><button class="btn ghost" onclick="location.reload()">重新整理</button>'; }
 
 /* ---------- 啟動 ---------- */
 async function start() {
   if (!API) return fatal('預約頁尚未設定完成，請洽社工。');
-  if (!DEV_UID) {
-    try {
-      await liff.init({ liffId: LIFF_ID });
-    } catch (e) {
-      return fatal('LINE 連線失敗，請關閉後重新開啟。');
-    }
-    if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
-    const ctx = liff.getContext();
-    // 只有從官方帳號 1 對 1 聊天室開啟，才能在聊天室送出確認句（回覆訊息不計則數）
-    S.canChat = liff.isInClient() && !!ctx && ctx.type === 'utype' && liff.isApiAvailable && liff.isApiAvailable('sendMessages') !== false;
+  S.token = loadToken();
+  if (!S.token) {
+    api('info').then(setOrg).catch(() => {});
+    S.me = null; render(); return;
   }
   await reload();
+}
+
+function setOrg(r) {
+  if (r && r.orgName) document.getElementById('org').textContent = r.orgName;
+  const tel = r && r.tel;
+  document.getElementById('foot').innerHTML = (tel ? '聯絡社工：<a href="tel:' + esc(tel.replace(/[^\d#]/g, '')) + '">' + esc(tel) + '</a>' : '') +
+    (S.me ? '<br>目前登入手機 ' + esc(S.me.phone) + '　<button class="link" id="logout">登出</button>' : '');
+  const lo = document.getElementById('logout');
+  if (lo) lo.onclick = logout;
 }
 
 async function reload(flash) {
   if (flash !== undefined) S.flash = flash;
   try {
     S.me = await api('me');
-    document.getElementById('org').textContent = S.me.orgName || '芊馨園護理之家';
-    const ok = approved();
-    if (ok.length && !ok.some(b => b.bed === S.bed)) S.bed = ok[0].bed;
-    if (ok.length && !S.days) S.days = (await api('availability', { bed: S.bed })).days;
-    render();
+    await afterMe();
   } catch (e) {
+    if (e.code === 'LOGIN') { saveToken(''); S.token = ''; S.me = null; render(); return; }
     fatal(e.message);
   }
+}
+
+async function afterMe() {
+  setOrg(S.me);
+  const ok = approved();
+  if (ok.length && !ok.some(b => b.bed === S.bed)) S.bed = ok[0].bed;
+  if (ok.length && !S.days) S.days = (await api('availability')).days;
+  render();
+}
+
+async function logout() {
+  sheet('<h2>登出這支手機？</h2><div class="hint">登出後要再預約，需重新輸入住民姓名與手機。借用別人手機時請記得登出。</div>' +
+    '<button class="btn warn" id="lo_go">登出</button><button class="btn ghost" id="lo_no">不要登出</button>');
+  document.getElementById('lo_no').onclick = closeSheet;
+  document.getElementById('lo_go').onclick = async () => {
+    try { await api('logout'); } catch (e) {}
+    saveToken(''); S.token = ''; S.me = null; S.days = null; S.tab = 'book';
+    closeSheet(); setOrg(null); render();
+  };
 }
 
 const approved = () => (S.me ? S.me.bindings.filter(b => b.status === '已核准') : []);
@@ -143,10 +169,21 @@ const pending = () => (S.me ? S.me.bindings.filter(b => b.status === '待審核'
 function render() {
   const flash = S.flash ? '<div class="msg ' + S.flash.type + '">' + esc(S.flash.text) + '</div>' : '';
   S.flash = null;
-  if (!approved().length || S.tab === 'bind') { app.innerHTML = flash + bindView(); bindEvents(); return; }
+  if (!S.me) { app.innerHTML = flash + loginView(); formEvents('login'); return; }
+  if (S.tab === 'bind') { app.innerHTML = flash + addView(); formEvents('addResident'); return; }
+  if (!approved().length) {
+    app.innerHTML = flash + pendingView() +
+      '<div class="card"><h2>尚無可預約的住民</h2><div class="hint">綁定審核通過後，重新打開本頁即可預約。</div>' +
+      '<button class="btn ghost" id="refresh">重新整理</button></div>' +
+      '<button class="link" data-tab="bind">＋ 綁定其他住民</button>';
+    document.getElementById('refresh').onclick = () => reload();
+    app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); });
+    return;
+  }
+  const mineCount = S.me.bookings.filter(b => b.status === '已預約').length;
   app.innerHTML = flash +
     '<div class="tabs"><button data-tab="book" class="' + (S.tab === 'book' ? 'on' : '') + '">預約探視</button>' +
-    '<button data-tab="mine" class="' + (S.tab === 'mine' ? 'on' : '') + '">我的預約' + (S.me.bookings.length ? '（' + S.me.bookings.length + '）' : '') + '</button></div>' +
+    '<button data-tab="mine" class="' + (S.tab === 'mine' ? 'on' : '') + '">我的預約' + (mineCount ? '（' + mineCount + '）' : '') + '</button></div>' +
     (S.tab === 'book' ? bookView() : mineView()) +
     pendingView() +
     '<button class="link" data-tab="bind">＋ 綁定其他住民</button>';
@@ -157,45 +194,59 @@ function render() {
 function pendingView() {
   const p = pending();
   if (!p.length) return '';
-  return '<div class="msg info">' + p.map(b => esc(b.resident) + ' 的綁定申請審核中，完成後會以 LINE 通知您').join('\n') + '</div>';
+  return '<div class="msg info">' + p.map(b => esc(b.resident) + ' 的綁定申請審核中').join('\n') + '</div>';
 }
 
-/* ---------- 綁定 ---------- */
-const PRIVACY = '芊馨園護理之家為辦理住民探視預約與聯繫，蒐集您的姓名、與住民的關係、手機號碼及 LINE 使用者識別碼。' +
-  '資料僅於本機構提供探視預約服務期間，在臺灣地區由本機構人員用於確認家屬身分、預約通知與聯繫，不提供給其他單位。' +
+/* ---------- 登入（第一次使用、換手機）與新增住民 ---------- */
+const PRIVACY = '芊馨園護理之家為辦理住民探視預約與聯繫，蒐集您的姓名、與住民的關係及手機號碼。' +
+  '資料僅於本機構提供探視預約服務期間，在臺灣地區由本機構人員用於確認家屬身分、安排探視與聯繫，不提供給其他單位。' +
   '您可以隨時向本機構社工請求查詢、閱覽、更正、停止利用或刪除您的資料。' +
   '若不提供，將無法使用線上預約，仍可來電由櫃台代為預約。';
 
-function bindView() {
-  const first = !approved().length;
-  return '<div class="card"><h2>' + (first ? '第一次使用，請先綁定住民' : '綁定其他住民') + '</h2>' +
-    '<div class="hint">請填寫您登記在機構的手機號碼，系統會自動比對；比對不到時由社工審核。</div>' +
-    '<label>住民姓名</label><input id="f_res" autocomplete="off" placeholder="住民全名">' +
-    '<label>床號 <span class="opt">（選填，例 102-1）</span></label><input id="f_bed" inputmode="numeric" autocomplete="off">' +
+const RELATIONS = ['兒子', '女兒', '媳婦', '女婿', '配偶', '孫子', '孫女', '兄弟姊妹', '其他親屬', '朋友'];
+
+function personFields(withPhone) {
+  return '<label>住民姓名</label><input id="f_res" autocomplete="off" placeholder="住民全名">' +
+    '<label>護號 <span class="opt">（選填，例 00068）</span></label><input id="f_pid" autocomplete="off" autocapitalize="characters">' +
     '<label>您的姓名</label><input id="f_fam" autocomplete="name">' +
     '<label>您與住民的關係</label><select id="f_rel"><option value="">請選擇</option>' +
-    ['兒子', '女兒', '媳婦', '女婿', '配偶', '孫子', '孫女', '兄弟姊妹', '其他親屬', '朋友'].map(x => '<option>' + x + '</option>').join('') +
-    '</select>' +
-    '<label>手機號碼</label><input id="f_tel" type="tel" inputmode="numeric" placeholder="09xx-xxx-xxx" autocomplete="tel">' +
-    '<details><summary>個人資料蒐集告知</summary><p>' + PRIVACY + '</p></details>' +
-    '<label class="check"><input type="checkbox" id="f_ok"><span>我已閱讀並同意個人資料蒐集告知</span></label>' +
-    '<button class="btn" id="f_go">送出</button>' +
-    (first ? '' : '<button class="btn ghost" data-tab="book">返回</button>') + '</div>' + pendingView();
+    RELATIONS.map(x => '<option>' + x + '</option>').join('') + '</select>' +
+    (withPhone ? '<label>手機號碼</label><input id="f_tel" type="tel" inputmode="numeric" placeholder="09xx-xxx-xxx" autocomplete="tel">' : '');
 }
 
-function bindEvents() {
+function loginView() {
+  return '<div class="card"><h2>請先確認身分</h2>' +
+    '<div class="hint">第一次使用或換了手機，請填寫以下資料。手機號碼請填登記在機構的號碼，系統會自動比對；比對不到時由社工審核。</div>' +
+    personFields(true) +
+    '<details><summary>個人資料蒐集告知</summary><p>' + PRIVACY + '</p></details>' +
+    '<label class="check"><input type="checkbox" id="f_ok"><span>我已閱讀並同意個人資料蒐集告知</span></label>' +
+    '<div class="hint">送出後，這支手機會記住您的身分，下次打開不用再填。</div>' +
+    '<button class="btn" id="f_go">送出</button></div>';
+}
+
+function addView() {
+  return '<div class="card"><h2>綁定其他住民</h2><div class="hint">使用目前登入的手機 ' + esc(S.me.phone) + ' 比對。</div>' +
+    personFields(false) +
+    '<button class="btn" id="f_go">送出</button><button class="btn ghost" data-tab="book">返回</button></div>';
+}
+
+function formEvents(action) {
   app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); });
   const go = document.getElementById('f_go');
   go.onclick = async () => {
-    const v = id => document.getElementById(id).value.trim();
-    if (!v('f_res') || !v('f_fam') || !v('f_rel') || !v('f_tel')) return toast('請把資料填寫完整');
-    if (!/^09\d{8}$/.test(v('f_tel').replace(/\D/g, ''))) return toast('手機號碼格式不正確（09 開頭 10 碼）');
-    if (!document.getElementById('f_ok').checked) return toast('請勾選同意個人資料蒐集告知');
+    const v = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+    if (!v('f_res') || !v('f_fam') || !v('f_rel') || (action === 'login' && !v('f_tel'))) return toast('請把資料填寫完整');
+    if (action === 'login') {
+      if (!/^09\d{8}$/.test(v('f_tel').replace(/\D/g, ''))) return toast('手機號碼格式不正確（09 開頭 10 碼）');
+      if (!document.getElementById('f_ok').checked) return toast('請勾選同意個人資料蒐集告知');
+    }
     go.disabled = true; go.textContent = '送出中…';
     try {
-      const r = await api('bind', { resident: v('f_res'), bed: v('f_bed'), family: v('f_fam'), relation: v('f_rel'), phone: v('f_tel') });
-      S.tab = 'book'; S.days = null;
-      await reload({ type: r.status === '已核准' ? 'ok' : 'info', text: r.message });
+      const r = await api(action, { resident: v('f_res'), pid: v('f_pid'), family: v('f_fam'), relation: v('f_rel'), phone: v('f_tel') });
+      if (r.token) { S.token = r.token; saveToken(r.token); }
+      S.me = r; S.tab = 'book'; S.days = null;
+      S.flash = { type: r.status === '已核准' ? 'ok' : 'info', text: r.message };
+      await afterMe();
     } catch (e) {
       go.disabled = false; go.textContent = '送出'; toast(e.message);
     }
@@ -249,9 +300,7 @@ function bookView() {
 }
 
 function bookEvents() {
-  app.querySelectorAll('[data-bed]').forEach(b => b.onclick = async () => {
-    S.bed = b.dataset.bed; S.slot = ''; render();
-  });
+  app.querySelectorAll('[data-bed]').forEach(b => b.onclick = () => { S.bed = b.dataset.bed; S.slot = ''; keep(); render(); });
   app.querySelectorAll('[data-date]').forEach(b => b.onclick = () => { S.date = b.dataset.date; S.slot = ''; keep(); render(); });
   app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => { S.slot = b.dataset.slot; keep(); render(); });
   const n = document.getElementById('b_n'), note = document.getElementById('b_note');
@@ -262,18 +311,18 @@ function bookEvents() {
   go.onclick = async () => {
     go.disabled = true; go.textContent = '預約中…';
     try {
-      const r = await api('book', { bed: S.bed, date: S.date, slot: S.slot, visitors: n.value, note: note.value.trim(), viaChat: S.canChat });
-      await confirmInChat('預約', r.booking.id);
+      const r = await api('book', { bed: S.bed, date: S.date, slot: S.slot, visitors: n.value, note: note.value.trim() });
       S.slot = ''; S.days = null; S.tab = 'mine';
       await reload({ type: 'ok', text: '預約成功\n' + summary(r.booking) + (r.booking.lateHint ? '\n\n' + r.booking.lateHint : '') });
     } catch (e) {
-      go.disabled = false; go.textContent = '確認預約'; toast(e.message);
-      S.days = (await api('availability', { bed: S.bed }).catch(() => ({ days: S.days }))).days; keep(); render();
+      toast(e.message);
+      try { S.days = (await api('availability')).days; } catch (x) {}
+      keep(); render();
     }
   };
 }
 
-// 切換日期、時段時保留已填的人數、備註
+// 切換住民、日期、時段時保留已填的人數、備註
 function keep() {
   const n = document.getElementById('b_n'), note = document.getElementById('b_note');
   if (n) S.keep = { n: n.value, note: note.value };
@@ -287,11 +336,15 @@ function summary(b) {
 function mineView() {
   const list = S.me.bookings;
   if (!list.length) return '<div class="card center" style="padding:28px 0">目前沒有預約</div>';
-  return list.map(b =>
-    '<div class="card bk"><div class="when">' + esc(b.dateLabel) + ' ' + esc(b.slotLabel.slice(2)) + '</div>' +
-    '<div class="who">' + esc(b.resident) + '　' + b.visitors + ' 位' + (b.note ? '（' + esc(b.note) + '）' : '') + '<br>編號 ' + esc(b.id) + '</div>' +
-    '<div class="acts"><button class="btn ghost" data-move="' + esc(b.id) + '">改期</button>' +
-    '<button class="btn warn" data-cancel="' + esc(b.id) + '">取消</button></div></div>').join('');
+  return list.map(b => {
+    const off = b.status !== '已預約';
+    return '<div class="card bk' + (off ? ' off' : '') + '"><div class="when">' + esc(b.dateLabel) + ' ' + esc(b.slotLabel.slice(2)) +
+      (off ? '<span class="tag wait">已取消</span>' : '') + '</div>' +
+      '<div class="who">' + esc(b.resident) + '　' + b.visitors + ' 位' + (b.note ? '（' + esc(b.note) + '）' : '') + '<br>編號 ' + esc(b.id) + '</div>' +
+      (off ? '<div class="msg err" style="margin:10px 0 0">' + esc(b.cancelReason || '已由機構取消') + '，請改選其他時段，造成不便敬請見諒。</div>' :
+        '<div class="acts"><button class="btn ghost" data-move="' + esc(b.id) + '">改期</button>' +
+        '<button class="btn warn" data-cancel="' + esc(b.id) + '">取消</button></div>') + '</div>';
+  }).join('');
 }
 
 function mineEvents() {
@@ -314,8 +367,7 @@ function cancelSheet(id) {
   go.onclick = async () => {
     go.disabled = true; go.textContent = '取消中…';
     try {
-      await api('cancel', { id: id, viaChat: S.canChat });
-      await confirmInChat('取消', id);
+      await api('cancel', { id: id });
       closeSheet(); S.days = null;
       await reload({ type: 'ok', text: '已取消 ' + b.dateLabel + ' ' + b.slotLabel.slice(2) + ' 的預約' });
     } catch (e) { closeSheet(); toast(e.message); }
@@ -325,8 +377,7 @@ function cancelSheet(id) {
 async function moveSheet(id) {
   const b = S.me.bookings.find(x => x.id === id);
   const st = { date: '', slot: '' };
-  const binding = approved().find(x => x.resident === b.resident) || approved()[0];
-  try { S.days = (await api('availability', { bed: binding.bed })).days; } catch (e) { return toast(e.message); }
+  try { S.days = (await api('availability')).days; } catch (e) { return toast(e.message); }
   st.date = firstOpenDate();
   const draw = () => {
     sheet('<h2>改期</h2><div class="hint">原預約：' + esc(b.dateLabel + ' ' + b.slotLabel.slice(2)) + '</div>' +
@@ -339,25 +390,13 @@ async function moveSheet(id) {
     go.onclick = async () => {
       go.disabled = true; go.textContent = '改期中…';
       try {
-        const r = await api('reschedule', { id: id, date: st.date, slot: st.slot, viaChat: S.canChat });
-        await confirmInChat('改期', r.booking.id);
+        const r = await api('reschedule', { id: id, date: st.date, slot: st.slot });
         closeSheet(); S.days = null;
-        await reload({ type: 'ok', text: '改期成功\n' + summary(r.booking) });
+        await reload({ type: 'ok', text: '改期成功\n' + summary(r.booking) + (r.booking.lateHint ? '\n\n' + r.booking.lateHint : '') });
       } catch (e) { go.disabled = false; go.textContent = '確認改期'; toast(e.message); }
     };
   };
   draw();
-}
-
-/* ---------- 聊天室確認句：由家屬送出，系統以回覆訊息回明細（不計則數） ---------- */
-async function confirmInChat(kind, id) {
-  if (!S.canChat) return; // 外部瀏覽器開啟：不傳 LINE，只顯示在本頁
-  try {
-    await liff.sendMessages([{ type: 'text', text: kind + '確認 ' + id }]);
-  } catch (e) {
-    // 送不出時交給後端依「預約異動傳 LINE 給家屬」設定決定是否推送（預設不推）
-    api('confirmFallback', { kind: kind, id: id }).catch(() => {});
-  }
 }
 
 let toastTimer;
