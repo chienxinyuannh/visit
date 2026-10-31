@@ -64,6 +64,7 @@
   .spin { width: 34px; height: 34px; border: 4px solid var(--soft); border-top-color: var(--main); border-radius: 50%; margin: 0 auto 12px; animation: s 1s linear infinite; }
   @keyframes s { to { transform: rotate(360deg); } }
   .hide { display: none !important; }
+  .msg.alert { background: #fff3dc; color: #8a5400; }
   .bk.off { border-left-color: var(--warn); opacity: .85; }
   footer a { color: var(--main); }
   footer { max-width: 560px; margin: 0 auto; padding: 0 14px 30px; color: var(--sub); font-size: 14px; }
@@ -254,15 +255,51 @@ function formEvents(action) {
 }
 
 /* ---------- 選日期與時段（預約、改期共用） ---------- */
-function pickerHtml(prefix, date, slot) {
+/* ---------- 週末分流（只提醒，不限制） ---------- */
+function splitCfg() {
+  const c = S.me && S.me.split;
+  return c && c.on ? c : null;
+}
+function isWeekend(date) { const w = new Date(date + 'T12:00:00+08:00').getUTCDay(); return w === 0 || w === 6; }
+/** 週六、週日：奇數日、偶數日各開放哪些樓層；平日回傳 null。 */
+function splitFloors(date) {
+  const c = splitCfg();
+  if (!c || !isWeekend(date)) return null;
+  return Number(date.slice(8, 10)) % 2 ? c.odd : c.even;
+}
+/** 日期與住民實際樓層（後端提供，5xx 房在 4 樓）不符時的提醒文字；相符或平日回傳 ''。 */
+function splitWarn(date, floor, resident) {
+  const floors = splitFloors(date);
+  if (!floors || !floor) return '';
+  const f = String(floor);
+  if (floors.indexOf(f) >= 0) return '';
+  const d = (S.days || []).find(x => x.date === date);
+  return (d ? d.label : date) + ' 是 ' + floors.join('、') + ' 樓的訪客日，' + resident + ' 住在 ' + f + ' 樓，建議改選其他日期。';
+}
+function splitRule() {
+  const c = splitCfg();
+  return c ? '週六、週日分樓層探視：單號日 ' + c.odd.join('、') + ' 樓，雙號日 ' + c.even.join('、') + ' 樓。' : '';
+}
+/** 送出前再提醒一次；按「仍要預約」才繼續。 */
+function splitConfirm(text, okLabel, onYes, onBack) {
+  hideToast();
+  sheet('<h2>提醒</h2><div class="msg alert">' + esc(text) + '</div>' +
+    '<button class="btn" id="sp_yes">' + okLabel + '</button><button class="btn ghost" id="sp_no">返回修改</button>');
+  document.getElementById('sp_yes').onclick = onYes;
+  document.getElementById('sp_no').onclick = onBack || closeSheet;
+}
+
+function pickerHtml(prefix, date, slot, floor, resident) {
   const days = S.days || [];
   const d = days.find(x => x.date === date);
-  let h = '<label>日期</label><div class="dates">' + days.map(x => {
+  const warn = splitWarn(date, floor, resident);
+  let h = '<label>日期</label>' + (splitRule() ? '<div class="hint" style="margin:-2px 0 6px">' + esc(splitRule()) + '</div>' : '') +
+    '<div class="dates">' + days.map(x => {
     const any = x.slots.some(s => s.bookable);
     const m = x.label.match(/^(\d+)\/(\d+)（(.)）/);
     return '<button class="date' + (x.date === date ? ' on' : '') + '" data-' + prefix + 'date="' + x.date + '"' + (any ? '' : ' disabled') + '>' +
       '<small>' + Number(m[1]) + '月</small><b>' + Number(m[2]) + '</b><small>週' + m[3] + '</small></button>';
-  }).join('') + '</div>';
+  }).join('') + '</div>' + (warn ? '<div class="msg alert" style="margin:4px 0 0">' + esc(warn) + '</div>' : '');
   if (d) {
     h += '<label>時段</label><div class="slots">' + d.slots.filter(s => s.open || s.reason !== '此時段不開放').map(s =>
       '<button class="slot' + (s.code === slot ? ' on' : '') + '" data-' + prefix + 'slot="' + s.code + '"' + (s.bookable ? '' : ' disabled') + '>' +
@@ -289,7 +326,7 @@ function bookView() {
     return h + '<div class="msg err" style="margin-top:12px">住民目前住院中，暫停探視預約。如需協助請洽社工。</div></div>';
   }
   if (!S.date) return h + '<div class="msg info" style="margin-top:12px">近期沒有可預約的時段。</div></div>';
-  h += pickerHtml('', S.date, S.slot);
+  h += pickerHtml('', S.date, S.slot, cur.floor, cur.resident);
   const max = S.me.maxVisitors || 4;
   h += '<div class="row"><div><label>人數</label><select id="b_n">' +
     Array.from({ length: max }, (_, i) => '<option>' + (i + 1) + '</option>').join('') + '</select></div><div></div></div>' +
@@ -301,14 +338,21 @@ function bookView() {
 
 function bookEvents() {
   app.querySelectorAll('[data-bed]').forEach(b => b.onclick = () => { S.bed = b.dataset.bed; S.slot = ''; keep(); render(); });
-  app.querySelectorAll('[data-date]').forEach(b => b.onclick = () => { S.date = b.dataset.date; S.slot = ''; keep(); render(); });
+  app.querySelectorAll('[data-date]').forEach(b => b.onclick = () => {
+    S.date = b.dataset.date; S.slot = ''; keep(); render();
+    const cur = approved().find(x => x.bed === S.bed);
+    const w = cur && splitWarn(S.date, cur.floor, cur.resident);
+    if (w) toast(w, 'alert');
+  });
   app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => { S.slot = b.dataset.slot; keep(); render(); });
+  showActiveDate(app);
   const n = document.getElementById('b_n'), note = document.getElementById('b_note');
   if (n && S.keep) { n.value = S.keep.n; note.value = S.keep.note; }
   S.keep = null;
   const go = document.getElementById('b_go');
   if (!go) return;
-  go.onclick = async () => {
+  const submit = async () => {
+    closeSheet();
     go.disabled = true; go.textContent = '預約中…';
     try {
       const r = await api('book', { bed: S.bed, date: S.date, slot: S.slot, visitors: n.value, note: note.value.trim() });
@@ -319,6 +363,12 @@ function bookEvents() {
       try { S.days = (await api('availability')).days; } catch (x) {}
       keep(); render();
     }
+  };
+  go.onclick = () => {
+    const cur = approved().find(x => x.bed === S.bed);
+    const w = cur && splitWarn(S.date, cur.floor, cur.resident);
+    if (w) splitConfirm(w + '\n\n確定仍要預約這一天嗎？', '仍要預約', submit);
+    else submit();
   };
 }
 
@@ -381,32 +431,49 @@ async function moveSheet(id) {
   st.date = firstOpenDate();
   const draw = () => {
     sheet('<h2>改期</h2><div class="hint">原預約：' + esc(b.dateLabel + ' ' + b.slotLabel.slice(2)) + '</div>' +
-      pickerHtml('m', st.date, st.slot) +
+      pickerHtml('m', st.date, st.slot, b.floor, b.resident) +
       '<button class="btn" id="m_go"' + (st.slot ? '' : ' disabled') + '>確認改期</button><button class="btn ghost" id="m_no">返回</button>');
-    layer.querySelectorAll('[data-mdate]').forEach(x => x.onclick = () => { st.date = x.dataset.mdate; st.slot = ''; draw(); });
+    layer.querySelectorAll('[data-mdate]').forEach(x => x.onclick = () => {
+      st.date = x.dataset.mdate; st.slot = ''; draw();
+      const w = splitWarn(st.date, b.floor, b.resident);
+      if (w) toast(w, 'alert');
+    });
     layer.querySelectorAll('[data-mslot]').forEach(x => x.onclick = () => { st.slot = x.dataset.mslot; draw(); });
+    showActiveDate(layer);
     document.getElementById('m_no').onclick = closeSheet;
     const go = document.getElementById('m_go');
-    go.onclick = async () => {
-      go.disabled = true; go.textContent = '改期中…';
+    const submit = async () => {
+      sheet('<div class="center"><div class="spin"></div>改期中…</div>');
       try {
         const r = await api('reschedule', { id: id, date: st.date, slot: st.slot });
         closeSheet(); S.days = null;
         await reload({ type: 'ok', text: '改期成功\n' + summary(r.booking) + (r.booking.lateHint ? '\n\n' + r.booking.lateHint : '') });
-      } catch (e) { go.disabled = false; go.textContent = '確認改期'; toast(e.message); }
+      } catch (e) { draw(); toast(e.message); }
+    };
+    go.onclick = () => {
+      const w = splitWarn(st.date, b.floor, b.resident);
+      if (w) splitConfirm(w + '\n\n確定仍要改到這一天嗎？', '仍要改期', submit, draw);
+      else submit();
     };
   };
   draw();
 }
 
+function hideToast() { const t = document.getElementById('toast'); if (t) t.classList.add('hide'); }
+/** 讓選到的日期出現在橫向日期列的可見範圍內。 */
+function showActiveDate(root) {
+  const el = (root || document).querySelector('.date.on');
+  if (el && el.parentNode) el.parentNode.scrollLeft = el.offsetLeft - el.parentNode.offsetLeft - 8;
+}
 let toastTimer;
-function toast(text) {
+function toast(text, kind) {
   let t = document.getElementById('toast');
   if (!t) {
     t = document.createElement('div'); t.id = 'toast'; t.className = 'msg err';
     t.style.cssText = 'position:fixed;left:14px;right:14px;bottom:18px;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.15);max-width:532px;margin:0 auto';
     document.body.appendChild(t);
   }
+  t.className = 'msg ' + (kind || 'err');
   t.textContent = text; t.classList.remove('hide');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('hide'), 4000);
 }
