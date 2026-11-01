@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>探視預約 櫃台</title>
+<style>
+  :root {
+    --bg: #f2f7f9; --card: #ffffff; --ink: #1f2f3a; --sub: #5e7280; --line: #d6e3ea;
+    --main: #2f6f8a; --main-2: #4f97ad; --soft: #e2f0f4; --warn: #a1532f; --warn-bg: #fbeee6;
+    --ok: #2d6a55; --ok-bg: #e3f3ec; --dis: #b9c6cd; --alert: #8a5400; --alert-bg: #fff3dc;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; -webkit-text-size-adjust: 100%; }
+  header { background: var(--main); color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  header .t { flex: 1; } header .org { font-size: 13px; opacity: .85; } header h1 { margin: 0; font-size: 20px; letter-spacing: 1px; }
+  header .me { font-size: 14px; text-align: right; } header .me button { background: none; border: 1px solid rgba(255,255,255,.6); color: #fff; border-radius: 6px; padding: 2px 10px; font: inherit; font-size: 13px; margin-top: 2px; cursor: pointer; }
+  main { padding: 12px 14px 40px; max-width: 980px; margin: 0 auto; }
+  .tabs { display: flex; gap: 4px; background: var(--soft); border-radius: 10px; padding: 4px; margin-bottom: 12px; overflow-x: auto; }
+  .tabs button { flex: 1 0 auto; border: 0; background: transparent; padding: 9px 12px; font: inherit; font-weight: 600; color: var(--sub); border-radius: 8px; cursor: pointer; white-space: nowrap; }
+  .tabs button.on { background: var(--card); color: var(--main); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .badge { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--warn); color: #fff; font-size: 12px; line-height: 20px; margin-left: 4px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  h2 { font-size: 17px; margin: 0 0 6px; color: var(--main); }
+  label { display: block; font-weight: 600; margin: 10px 0 4px; font-size: 15px; }
+  label .opt { font-weight: 400; color: var(--sub); font-size: 13px; }
+  input, select { width: 100%; font: inherit; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
+  input:focus, select:focus { outline: 2px solid var(--main-2); border-color: transparent; }
+  input:disabled { background: #eef2f4; color: var(--sub); }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0 12px; }
+  .grid .w2 { grid-column: span 2; } .grid .w4 { grid-column: span 4; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr 1fr; } .grid .w2, .grid .w4 { grid-column: span 2; } }
+  .btn { display: inline-block; margin-top: 14px; padding: 10px 22px; border: 0; border-radius: 9px; background: var(--main); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+  .btn.full { display: block; width: 100%; }
+  .btn:disabled { background: var(--dis); cursor: default; }
+  .btn.ghost { background: #fff; color: var(--main); border: 1px solid var(--main); }
+  .btn.warn { background: var(--warn); }
+  .btn.sm { margin-top: 0; padding: 7px 14px; font-size: 14px; }
+  .hint { color: var(--sub); font-size: 13px; margin-top: 4px; }
+  .msg { border-radius: 10px; padding: 10px 14px; margin: 12px 0 0; white-space: pre-wrap; }
+  .msg.ok { background: var(--ok-bg); color: var(--ok); } .msg.err { background: var(--warn-bg); color: var(--warn); }
+  .msg.alert { background: var(--alert-bg); color: var(--alert); } .msg.info { background: var(--soft); color: var(--main); }
+  .item { border: 1px solid var(--line); border-left: 4px solid var(--main-2); border-radius: 10px; padding: 10px 12px; margin-top: 10px; background: #fff; }
+  .item .top { font-weight: 700; } .item .sub { color: var(--sub); font-size: 14px; }
+  .acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+  .acts input, .acts select { width: auto; flex: 1 1 140px; padding: 7px 9px; font-size: 14px; }
+  .tag { display: inline-block; font-size: 12px; padding: 0 8px; border-radius: 999px; background: var(--soft); color: var(--main); margin-left: 6px; vertical-align: 1px; font-weight: 400; }
+  .tag.walk { background: var(--alert-bg); color: var(--alert); }
+  .seg { display: inline-flex; border: 1px solid var(--main); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: #fff; color: var(--main); padding: 7px 16px; font: inherit; cursor: pointer; }
+  .seg button.on { background: var(--main); color: #fff; }
+  .tbl { overflow-x: auto; margin-top: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 640px; }
+  th { background: var(--main); color: #fff; font-weight: 600; text-align: left; padding: 7px 8px; white-space: nowrap; }
+  td { border-bottom: 1px solid var(--line); padding: 7px 8px; vertical-align: top; }
+  tr.grp td { background: var(--soft); color: var(--main); font-weight: 700; }
+  .cand { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-top: 6px; cursor: pointer; }
+  .cand input { width: 18px; height: 18px; margin-top: 3px; flex: 0 0 18px; }
+  .cand .c { font-size: 14px; } .cand .c b { font-size: 15px; }
+  .center { text-align: center; color: var(--sub); padding: 40px 0; }
+  .spin { width: 32px; height: 32px; border: 4px solid var(--soft); border-top-color: var(--main); border-radius: 50%; margin: 0 auto 12px; animation: s 1s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  .hide { display: none !important; }
+  .login { max-width: 420px; margin: 40px auto; text-align: center; }
+  @media (max-width: 720px) { .tabs { flex-wrap: wrap; } .tabs button { flex: 1 1 30%; padding: 8px 4px; font-size: 14px; } }
+  #gbtn { display: flex; justify-content: center; margin: 18px 0 6px; min-height: 44px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="t"><div class="org" id="org">芊馨園護理之家</div><h1>探視預約 櫃台</h1></div>
+  <div class="me hide" id="me"><span id="meName"></span><br><button onclick="logout()">登出</button></div>
+</header>
+<main id="app"><div class="center"><div class="spin"></div>載入中…</div></main>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+/* ===== 設定（上架前填寫） ===== */
+const API_URL = 'https://script.google.com/macros/s/AKfycbxjYCeQ1JQhUKijRd0XmPwTbJZuIkvlzU6F33PFh9XvNuKpX1k6iYmeSnetIC6BNN6Q/exec';   // Apps Script 部署網址（結尾 /exec），與家屬預約頁相同
+/* ============================== */
+const QS = new URLSearchParams(location.search);
+const API = QS.get('api') || API_URL;
+const KEY = 'cxy_staff_token';
+let TOKEN = '';
+try { TOKEN = localStorage.getItem(KEY) || ''; } catch (e) { TOKEN = ''; }
+let D = null;          // staffInit 的資料
+let TAB = 'book';
+let LISTWHICH = 'today';
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function api(action, data) {
+  const body = Object.assign({ action: action, token: TOKEN }, data || {});
+  let r;
+  try {
+    const res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+    r = await res.json();
+  } catch (e) {
+    return { ok: false, error: '連線失敗，請檢查網路後再試' };
+  }
+  if (!r.ok && r.code === 'LOGIN') { setToken(''); showLogin(r.error); }
+  return r;
+}
+function setToken(t) { TOKEN = t; try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch (e) { /* 無痕模式 */ } }
+function msg(id, kind, text) { const m = $(id); if (!m) return; m.className = 'msg ' + kind; m.textContent = text; }
+function clearMsg(id) { const m = $(id); if (m) { m.className = 'hide'; m.textContent = ''; } }
+
+/* ---------- 登入 ---------- */
+async function start() {
+  if (!API) { $('app').innerHTML = '<div class="card">櫃台網頁尚未設定完成（API_URL）。</div>'; return; }
+  if (TOKEN) { const ok = await loadInit(); if (ok) return; }
+  showLogin();
+}
+async function showLogin(note) {
+  $('me').classList.add('hide');
+  $('app').innerHTML = '<div class="card login"><h2>櫃台人員登入</h2><div class="hint">請用已加入「櫃台人員」名單的 Google 帳號登入</div>' +
+    '<div id="gbtn"></div><div id="lm" class="hide"></div></div>';
+  if (note && note !== '請重新登入') msg('lm', 'err', note);
+  const cfg = await api('staffConfig');
+  if (!cfg.ok || !cfg.clientId) return msg('lm', 'err', cfg.error || '櫃台網頁尚未設定完成（Google 登入用戶端 ID）');
+  if (cfg.orgName) $('org').textContent = cfg.orgName;
+  const init = () => {
+    google.accounts.id.initialize({ client_id: cfg.clientId, callback: onGoogle, auto_select: true });
+    google.accounts.id.renderButton($('gbtn'), { theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', locale: 'zh-TW' });
+  };
+  if (window.google && google.accounts && google.accounts.id) init();
+  else { let n = 0; const t = setInterval(() => { if (window.google && google.accounts && google.accounts.id) { clearInterval(t); init(); } else if (++n > 50) { clearInterval(t); msg('lm', 'err', 'Google 登入元件載入失敗，請重新整理'); } }, 200); }
+}
+async function onGoogle(resp) {
+  msg('lm', 'info', '登入中…');
+  const r = await api('staffLogin', { idToken: resp.credential });
+  if (!r.ok) return msg('lm', 'err', r.error);
+  setToken(r.token);
+  loadInit();
+}
+async function logout() {
+  await api('staffLogout');
+  setToken('');
+  try { google.accounts.id.disableAutoSelect(); } catch (e) { /* 未載入 */ }
+  showLogin();
+}
+
+/* ---------- 主畫面 ---------- */
+async function loadInit(keepTab) {
+  const r = await api('staffInit');
+  if (!r.ok) return false;
+  D = r;
+  $('meName').textContent = r.me.name;
+  $('me').classList.remove('hide');
+  if (!keepTab) render(); else { renderTabs(); }
+  return true;
+}
+function renderTabs() {
+  const t = [['book', '新增代約'], ['walk', '當日臨時登記'], ['find', '查詢／取消／改期'], ['list', '今日／明日名單'], ['review', '綁定審核']];
+  $('tabs').innerHTML = t.map(x => '<button class="' + (TAB === x[0] ? 'on' : '') + '" onclick="go(\'' + x[0] + '\')">' + x[1] +
+    (x[0] === 'review' && D.pendingCount ? '<span class="badge">' + D.pendingCount + '</span>' : '') + '</button>').join('');
+}
+function render() {
+  $('app').innerHTML = '<datalist id="resList">' + D.residents.map(x => '<option value="' + esc(x.bed + ' ' + x.name) + '">' +
+    esc((x.pid ? '護號 ' + x.pid : '') + (x.status === '住院中' ? '　住院中' : '')) + '</option>').join('') + '</datalist>' +
+    '<div class="tabs" id="tabs"></div><div id="pane"></div>';
+  renderTabs();
+  ({ book: paneBook, walk: paneWalk, find: paneFind, list: paneList, review: paneReview })[TAB]();
+}
+function go(t) { TAB = t; render(); }
+function bedOf(v) {
+  v = String(v || '').trim();
+  const m = v.match(/^(\d{3}-\d+)/);
+  if (m) return D.residents.some(x => x.bed === m[1]) ? m[1] : '';
+  const r = D.residents.filter(x => x.name === v || x.pid === v.padStart(5, '0'));
+  return r.length === 1 ? r[0].bed : '';
+}
+function resOf(bed) { return D.residents.find(x => x.bed === bed); }
+function firstBookable() { const d = D.days.find(x => x.slots.some(s => s.bookable)); return d ? d.date : D.days[0].date; }
+function visitorsOpts() { let v = ''; for (let i = 1; i <= D.maxVisitors; i++) v += '<option>' + i + '</option>'; return v; }
+function splitWarn(date, floor) {
+  const c = D.split;
+  if (!c || !c.on || !date || !floor) return '';
+  const w = new Date(date + 'T12:00:00+08:00').getUTCDay();
+  if (w !== 0 && w !== 6) return '';
+  const floors = Number(date.slice(8, 10)) % 2 ? c.odd : c.even;
+  return floors.indexOf(floor) >= 0 ? '' : '提醒：這天是 ' + floors.join('、') + ' 樓訪客日，住民在 ' + floor + ' 樓（仍可代約）';
+}
+function slotOptions(dayObj) {
+  return dayObj.slots.map(s => '<option value="' + s.code + '"' + (s.bookable ? '' : ' disabled') + '>' + esc(s.label) +
+    (s.open ? '　剩 ' + s.left + ' 組' : '') + (s.bookable ? '' : '（' + esc(s.reason) + '）') + '</option>').join('');
+}
+function residentField(id, onchange) {
+  return '<label>住民 <span class="opt">輸入床號、姓名或護號，從清單點選</span></label><input id="' + id + '" list="resList" autocomplete="off" placeholder="例：102-1 王小明"' + (onchange ? ' onchange="' + onchange + '"' : '') + '>';
+}
+
+/* 新增代約 */
+function paneBook() {
+  $('pane').innerHTML = '<div class="card"><h2>新增代約</h2><div class="hint">剩餘組數已含櫃台額外名額 ' + D.extra + ' 組（家屬網頁看不到這 ' + D.extra + ' 組）。當天 08:00 後請改用「當日臨時登記」。</div>' +
+    '<div class="grid"><div class="w4">' + residentField('bRes', 'bWarn()') + '</div>' +
+    '<div class="w2"><label>日期</label><select id="bDate" onchange="bSlots();bWarn()">' + D.days.map(d => '<option value="' + d.date + '">' + esc(d.label) + '</option>').join('') + '</select></div>' +
+    '<div class="w2"><label>時段</label><select id="bSlot"></select></div>' +
+    '<div class="w4 hint" id="bWarn" style="color:var(--alert)"></div>' +
+    '<div class="w2"><label>家屬姓名</label><input id="bFam"></div>' +
+    '<div><label>人數</label><select id="bVis">' + visitorsOpts() + '</select></div>' +
+    '<div><label>家屬手機 <span class="opt">選填</span></label><input id="bPhone" type="tel" placeholder="09xxxxxxxx"></div>' +
+    '<div class="w4"><label>備註 <span class="opt">選填</span></label><input id="bNote" placeholder="例：輪椅、帶外食"></div></div>' +
+    '<div class="hint">填了家屬手機，家屬用這支手機登入預約網頁，也看得到這筆並能自行取消、改期。</div>' +
+    '<button class="btn" id="bBtn" onclick="doBook()">送出代約</button><div id="bMsg" class="hide"></div></div>';
+  $('bDate').value = firstBookable();
+  bSlots();
+}
+function bSlots() {
+  const d = D.days.find(x => x.date === $('bDate').value);
+  $('bSlot').innerHTML = slotOptions(d);
+  const first = d.slots.find(s => s.bookable); if (first) $('bSlot').value = first.code;
+}
+function bWarn() { const r = resOf(bedOf($('bRes').value)); $('bWarn').textContent = splitWarn($('bDate').value, r ? r.floor : ''); }
+async function doBook() {
+  const bed = bedOf($('bRes').value);
+  if (!bed) return msg('bMsg', 'err', '請從清單選擇住民');
+  if (!$('bSlot').value) return msg('bMsg', 'err', '這一天沒有可預約的時段');
+  $('bBtn').disabled = true;
+  const r = await api('staffBook', { bed: bed, date: $('bDate').value, slot: $('bSlot').value, family: $('bFam').value, visitors: $('bVis').value, phone: $('bPhone').value, note: $('bNote').value });
+  $('bBtn').disabled = false;
+  if (!r.ok) return msg('bMsg', 'err', r.error);
+  const b = r.booking;
+  const keep = $('bDate').value;
+  await loadInit(true);
+  paneBook(); $('bDate').value = keep; bSlots();
+  msg('bMsg', 'ok', '代約完成　編號 ' + b.id + '\n' + b.dateLabel + ' ' + b.slotLabel + '　' + b.bed + ' ' + b.resident + '　' + b.family + ' ' + b.visitors + ' 位');
+}
+
+/* 當日臨時登記 */
+function paneWalk() {
+  const t = D.today;
+  $('pane').innerHTML = '<div class="card"><h2>當日臨時登記</h2><div class="hint">08:00 後的來電、訊息或現場訪客在這裡登記，留下訪客紀錄。只能登記今天；時段開始了也能補登；超過上限只提醒。</div>' +
+    '<div class="grid"><div class="w4">' + residentField('wRes') + '</div>' +
+    '<div class="w2"><label>日期</label><input value="' + esc(t.label) + '" disabled></div>' +
+    '<div class="w2"><label>時段 <span class="opt">已約／櫃台上限</span></label><select id="wSlot">' + t.slots.map(s => '<option value="' + s.code + '"' + (s.open ? '' : ' disabled') + '>' + esc(s.label) +
+      (s.open ? '　已約 ' + s.booked + '／' + s.limit + ' 組' : '（' + esc(s.reason) + '）') + '</option>').join('') + '</select></div>' +
+    '<div class="w2"><label>家屬姓名</label><input id="wFam"></div>' +
+    '<div><label>人數</label><select id="wVis">' + visitorsOpts() + '</select></div>' +
+    '<div><label>家屬手機 <span class="opt">選填</span></label><input id="wPhone" type="tel" placeholder="09xxxxxxxx"></div>' +
+    '<div class="w4"><label>備註 <span class="opt">選填</span></label><input id="wNote" placeholder="例：來電預約、現場訪客"></div></div>' +
+    '<button class="btn" id="wBtn" onclick="doWalk()">送出臨時登記</button><div id="wMsg" class="hide"></div></div>';
+  const ok = t.slots.filter(s => s.open); if (ok.length) $('wSlot').value = ok[0].code;
+}
+async function doWalk() {
+  const bed = bedOf($('wRes').value);
+  if (!bed) return msg('wMsg', 'err', '請從清單選擇住民');
+  if (!$('wSlot').value) return msg('wMsg', 'err', '今天沒有開放的時段');
+  $('wBtn').disabled = true;
+  const keepSlot = $('wSlot').value;
+  const r = await api('staffWalkin', { bed: bed, slot: keepSlot, family: $('wFam').value, visitors: $('wVis').value, phone: $('wPhone').value, note: $('wNote').value });
+  $('wBtn').disabled = false;
+  if (!r.ok) return msg('wMsg', 'err', r.error);
+  const b = r.booking;
+  await loadInit(true);
+  paneWalk(); $('wSlot').value = keepSlot;
+  msg('wMsg', b.overLimit ? 'alert' : 'ok', '臨時登記完成　編號 ' + b.id + '\n' + b.dateLabel + ' ' + b.slotLabel + '　' + b.bed + ' ' + b.resident + '　' + b.family + ' ' + b.visitors + ' 位' +
+    (b.overLimit ? '\n' + b.overLimit : '') + (r.listNote ? '\n' + r.listNote : ''));
+}
+
+/* 查詢／取消／改期 */
+function paneFind() {
+  $('pane').innerHTML = '<div class="card"><h2>查詢／取消／改期</h2>' +
+    '<div class="grid"><div class="w4">' + residentField('fRes', 'doFind()') + '</div></div>' +
+    '<button class="btn" onclick="doFind()">查詢</button><div class="hint">列出今天以後的有效預約。當天 08:00 後家屬不能自行取消，櫃台取消後請轉告現場。</div>' +
+    '<div id="fMsg" class="hide"></div><div id="fList"></div></div>';
+}
+async function doFind(keepMsg) {
+  if (!$('fRes')) return; // 已切到別的分頁
+  const bed = bedOf($('fRes').value);
+  if (!bed) return msg('fMsg', 'err', '請從清單選擇住民');
+  if (!keepMsg) clearMsg('fMsg');
+  const r = await api('staffFind', { bed: bed });
+  if (!$('fList')) return;
+  if (!r.ok) return msg('fMsg', 'err', r.error);
+  if (!r.bookings.length) { $('fList').innerHTML = ''; if (!keepMsg) msg('fMsg', 'info', '沒有今天以後的預約'); return; }
+  const dates = D.days.map(d => '<option value="' + d.date + '">' + esc(d.label) + '</option>').join('');
+  $('fList').innerHTML = r.bookings.map((b, i) => '<div class="item"><div class="top">' + esc(b.dateLabel + ' ' + b.slotLabel) +
+    (b.source === '臨時' ? '<span class="tag walk">臨時</span>' : b.source ? '<span class="tag">' + esc(b.source) + '</span>' : '') + '</div>' +
+    '<div class="sub">' + esc(b.id + '　' + b.bed + ' ' + b.resident + '　家屬 ' + b.family + ' ' + b.visitors + ' 位' + (b.phone ? '　' + b.phone : '') + (b.note ? '（' + b.note + '）' : '')) + '</div>' +
+    '<div class="acts"><input id="rs' + i + '" placeholder="取消原因（選填）"><button class="btn sm warn" onclick="doCancel(\'' + b.id + '\',' + i + ')">取消</button></div>' +
+    '<div class="acts"><select id="d' + i + '" onchange="fSlots(' + i + ')">' + dates + '</select><select id="s' + i + '"></select><button class="btn sm ghost" onclick="doMove(\'' + b.id + '\',' + i + ')">改期</button></div></div>').join('');
+  r.bookings.forEach((b, i) => { $('d' + i).value = firstBookable(); fSlots(i); });
+}
+function fSlots(i) {
+  const d = D.days.find(x => x.date === $('d' + i).value);
+  $('s' + i).innerHTML = slotOptions(d);
+  const first = d.slots.find(s => s.bookable); if (first) $('s' + i).value = first.code;
+}
+async function doCancel(id, i) {
+  if (!confirm('確定取消 ' + id + '？')) return;
+  const r = await api('staffCancel', { id: id, reason: $('rs' + i).value });
+  if (!r.ok) return msg('fMsg', 'err', r.error);
+  msg('fMsg', 'ok', id + ' 已取消。若是今天的探視，請轉告現場。');
+  await loadInit(true); doFind(true);
+}
+async function doMove(id, i) {
+  const r = await api('staffReschedule', { id: id, date: $('d' + i).value, slot: $('s' + i).value });
+  if (!r.ok) return msg('fMsg', 'err', r.error);
+  msg('fMsg', 'ok', id + ' 已改期為 ' + r.booking.id + '（' + r.booking.dateLabel + ' ' + r.booking.slotLabel + '）');
+  await loadInit(true); doFind(true);
+}
+
+/* 今日／明日名單 */
+function paneList() {
+  $('pane').innerHTML = '<div class="card"><div class="acts" style="margin-top:0"><div class="seg"><button id="lt" onclick="LISTWHICH=\'today\';loadList()">今日</button><button id="lm2" onclick="LISTWHICH=\'tomorrow\';loadList()">明日</button></div>' +
+    '<span style="flex:1"></span><button class="btn sm ghost" onclick="copyList()">複製名單文字</button></div><div id="lMsg" class="hide"></div><div id="lBody"><div class="center"><div class="spin"></div></div></div></div>';
+  loadList();
+}
+let LISTTEXT = '';
+async function loadList() {
+  $('lt').className = LISTWHICH === 'today' ? 'on' : ''; $('lm2').className = LISTWHICH === 'tomorrow' ? 'on' : '';
+  const r = await api('staffList', { which: LISTWHICH });
+  if (!$('lBody')) return;
+  if (!r.ok) return msg('lMsg', 'err', r.error);
+  LISTTEXT = r.text;
+  const people = r.rows.reduce((n, x) => n + Number(x.visitors || 0), 0);
+  let html = '<h2 style="margin-top:12px">' + esc(r.label) + '　共 ' + r.rows.length + ' 組 ' + people + ' 位</h2>';
+  if (!r.rows.length) { $('lBody').innerHTML = html + '<div class="hint">沒有預約</div>'; return; }
+  html += '<div class="tbl"><table><tr><th>時段</th><th>樓層</th><th>護號</th><th>床號</th><th>住民</th><th>家屬</th><th>人數</th><th>手機</th><th>備註</th></tr>';
+  let cur = '';
+  r.rows.forEach(x => {
+    if (x.slotLabel !== cur) { cur = x.slotLabel; html += '<tr class="grp"><td colspan="9">' + esc(cur) + '</td></tr>'; }
+    html += '<tr><td>' + esc(x.slot) + '</td><td>' + esc(x.floor) + '</td><td>' + esc(x.pid) + '</td><td>' + esc(x.bed) + '</td><td>' + esc(x.resident) +
+      (x.source === '臨時' ? '<span class="tag walk">臨時</span>' : '') + '</td><td>' + esc(x.family) + '</td><td>' + esc(x.visitors) + '</td><td>' + esc(x.phone) + '</td><td>' + esc(x.note) + '</td></tr>';
+  });
+  $('lBody').innerHTML = html + '</table></div>';
+}
+async function copyList() {
+  try { await navigator.clipboard.writeText(LISTTEXT); msg('lMsg', 'ok', '已複製，可以貼到 LINE'); }
+  catch (e) { msg('lMsg', 'err', '這個瀏覽器不能自動複製，請改用小J在群組輸入「今日名單」'); }
+}
+
+/* 綁定審核 */
+async function paneReview() {
+  $('pane').innerHTML = '<div class="card"><h2>家屬綁定審核</h2><div class="hint">家屬手機不在聯絡人名單、姓名對不上或超過綁定上限時，申請會停在這裡。核准前請先電話確認身分。</div><div id="rMsg" class="hide"></div><div id="rList"><div class="center"><div class="spin"></div></div></div></div>';
+  const r = await api('staffPending');
+  if (!$('rList')) return;
+  if (!r.ok) return msg('rMsg', 'err', r.error);
+  if (!r.pending.length) { $('rList').innerHTML = '<div class="hint" style="margin-top:12px">目前沒有待審核的申請。</div>'; return; }
+  $('rList').innerHTML = r.pending.map(p => '<div class="item" id="rv' + p.id + '"><div class="top">' + esc(p.family) + '（' + esc(p.relation) + '）' + esc(p.phone) + '</div>' +
+    '<div class="sub">申請 ' + esc(p.id) + '　' + esc(p.created) + '　要綁定住民：<b>' + esc(p.resident) + '</b>' + (p.note ? '<br>系統備註：' + esc(p.note) : '') + '</div>' +
+    (p.candidates.length ? p.candidates.map((c, j) => '<label class="cand"><input type="radio" name="c' + p.id + '" value="' + esc(c.bed) + '"' + (p.candidates.length === 1 ? ' checked' : '') + '>' +
+      '<span class="c"><b>' + esc(c.bed + ' ' + c.name) + '</b>' + (c.pid ? '　護號 ' + esc(c.pid) : '') + '　已綁定 ' + c.approved + ' 位<br>' +
+      (c.contacts.length ? 'TLCA 聯絡人：' + esc(c.contacts.join('；')) : '沒有聯絡人資料') + '</span></label>').join('')
+      : '<div class="msg alert">名冊裡找不到「' + esc(p.resident) + '」。若確定是本機構住民，請在下面選擇床號：</div>' +
+        '<select id="sel' + p.id + '"><option value="">（選擇住民）</option>' + D.residents.map(x => '<option value="' + esc(x.bed) + '">' + esc(x.bed + ' ' + x.name) + '</option>').join('') + '</select>') +
+    '<div class="acts"><button class="btn sm" onclick="doReview(\'' + p.id + '\',\'核准\')">核准</button><button class="btn sm warn" onclick="doReview(\'' + p.id + '\',\'拒絕\')">拒絕</button></div></div>').join('');
+}
+async function doReview(id, decision) {
+  let bed = '';
+  const pick = document.querySelector('input[name="c' + id + '"]:checked');
+  if (pick) bed = pick.value; else if ($('sel' + id)) bed = $('sel' + id).value;
+  if (decision === '核准' && !bed) return msg('rMsg', 'err', '請先選擇要綁定的住民床號');
+  if (decision === '拒絕' && !confirm('確定拒絕 ' + id + '？')) return;
+  const r = await api('staffReview', { id: id, decision: decision, bed: bed });
+  if (!r.ok) return msg('rMsg', 'err', r.error);
+  msg('rMsg', 'ok', id + ' 已' + (decision === '核准' ? '核准，家屬重新打開預約網頁即可預約' : '拒絕'));
+  const el = $('rv' + id); if (el) el.remove();
+  await loadInit(true);
+}
+
+start();
+</script>
+</body>
+</html>
