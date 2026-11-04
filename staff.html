@@ -152,6 +152,11 @@ async function loadInit(keepTab) {
   if (!keepTab) render(); else { renderTabs(); }
   return true;
 }
+/** 加速：異動成功時後端已帶回最新初始資料，就不用再問一次（後端是舊版才多問）。 */
+async function afterAction(r) {
+  if (r && r.init && r.init.ok) { D = r.init; $('meName').textContent = D.me.name; renderTabs(); return; }
+  await loadInit(true);
+}
 function renderTabs() {
   const t = [['book', '新增代約'], ['walk', '當日臨時登記'], ['find', '查詢／取消／改期'], ['list', '今日／明日名單'], ['review', '綁定審核']];
   $('tabs').innerHTML = t.map(x => '<button class="' + (TAB === x[0] ? 'on' : '') + '" onclick="go(\'' + x[0] + '\')">' + x[1] +
@@ -218,12 +223,12 @@ async function doBook() {
   if (!bed) return msg('bMsg', 'err', '請從清單選擇住民');
   if (!$('bSlot').value) return msg('bMsg', 'err', '這一天沒有可預約的時段');
   $('bBtn').disabled = true;
-  const r = await api('staffBook', { bed: bed, date: $('bDate').value, slot: $('bSlot').value, family: $('bFam').value, visitors: $('bVis').value, phone: $('bPhone').value, note: $('bNote').value });
+  const r = await api('staffBook', { bed: bed, date: $('bDate').value, slot: $('bSlot').value, family: $('bFam').value, visitors: $('bVis').value, phone: $('bPhone').value, note: $('bNote').value, withInit: true });
   $('bBtn').disabled = false;
   if (!r.ok) return msg('bMsg', 'err', r.error);
   const b = r.booking;
   const keep = $('bDate').value;
-  await loadInit(true);
+  await afterAction(r);
   paneBook(); $('bDate').value = keep; bSlots();
   msg('bMsg', 'ok', '代約完成　編號 ' + b.id + '\n' + b.dateLabel + ' ' + b.slotLabel + '　' + b.bed + ' ' + b.resident + '　' + b.family + ' ' + b.visitors + ' 位');
 }
@@ -249,11 +254,11 @@ async function doWalk() {
   if (!$('wSlot').value) return msg('wMsg', 'err', '今天沒有開放的時段');
   $('wBtn').disabled = true;
   const keepSlot = $('wSlot').value;
-  const r = await api('staffWalkin', { bed: bed, slot: keepSlot, family: $('wFam').value, visitors: $('wVis').value, phone: $('wPhone').value, note: $('wNote').value });
+  const r = await api('staffWalkin', { bed: bed, slot: keepSlot, family: $('wFam').value, visitors: $('wVis').value, phone: $('wPhone').value, note: $('wNote').value, withInit: true });
   $('wBtn').disabled = false;
   if (!r.ok) return msg('wMsg', 'err', r.error);
   const b = r.booking;
-  await loadInit(true);
+  await afterAction(r);
   paneWalk(); $('wSlot').value = keepSlot;
   msg('wMsg', b.overLimit ? 'alert' : 'ok', '臨時登記完成　編號 ' + b.id + '\n' + b.dateLabel + ' ' + b.slotLabel + '　' + b.bed + ' ' + b.resident + '　' + b.family + ' ' + b.visitors + ' 位' +
     (b.overLimit ? '\n' + b.overLimit : '') + (r.listNote ? '\n' + r.listNote : ''));
@@ -290,16 +295,16 @@ function fSlots(i) {
 }
 async function doCancel(id, i) {
   if (!confirm('確定取消 ' + id + '？')) return;
-  const r = await api('staffCancel', { id: id, reason: $('rs' + i).value });
+  const r = await api('staffCancel', { id: id, reason: $('rs' + i).value, withInit: true });
   if (!r.ok) return msg('fMsg', 'err', r.error);
   msg('fMsg', 'ok', id + ' 已取消。若是今天的探視，請轉告現場。');
-  await loadInit(true); doFind(true);
+  await afterAction(r); doFind(true);
 }
 async function doMove(id, i) {
-  const r = await api('staffReschedule', { id: id, date: $('d' + i).value, slot: $('s' + i).value });
+  const r = await api('staffReschedule', { id: id, date: $('d' + i).value, slot: $('s' + i).value, withInit: true });
   if (!r.ok) return msg('fMsg', 'err', r.error);
   msg('fMsg', 'ok', id + ' 已改期為 ' + r.booking.id + '（' + r.booking.dateLabel + ' ' + r.booking.slotLabel + '）');
-  await loadInit(true); doFind(true);
+  await afterAction(r); doFind(true);
 }
 
 /* 今日／明日名單 */
@@ -354,11 +359,11 @@ async function doReview(id, decision) {
   if (pick) bed = pick.value; else if ($('sel' + id)) bed = $('sel' + id).value;
   if (decision === '核准' && !bed) return msg('rMsg', 'err', '請先選擇要綁定的住民床號');
   if (decision === '拒絕' && !confirm('確定拒絕 ' + id + '？')) return;
-  const r = await api('staffReview', { id: id, decision: decision, bed: bed });
+  const r = await api('staffReview', { id: id, decision: decision, bed: bed, withInit: true });
   if (!r.ok) return msg('rMsg', 'err', r.error);
   msg('rMsg', 'ok', id + ' 已' + (decision === '核准' ? '核准，家屬重新打開預約網頁即可預約' : '拒絕'));
   const el = $('rv' + id); if (el) el.remove();
-  await loadInit(true);
+  await afterAction(r);
 }
 
 start();

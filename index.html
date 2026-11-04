@@ -67,11 +67,13 @@
   .msg.alert { background: #fff3dc; color: #8a5400; }
   .bk.off { border-left-color: var(--warn); opacity: .85; }
   footer a { color: var(--main); }
+  header { position: relative; }
+  .sync { position: absolute; right: 16px; bottom: 12px; font-size: 13px; opacity: .85; }
   footer { max-width: 560px; margin: 0 auto; padding: 0 14px 30px; color: var(--sub); font-size: 14px; }
 </style>
 </head>
 <body>
-<header><div class="org" id="org">芊馨園護理之家</div><h1>探視預約</h1></header>
+<header><div class="org" id="org">芊馨園護理之家</div><h1>探視預約</h1><div id="sync" class="sync hide">更新中…</div></header>
 <main id="app"><div class="center"><div class="spin"></div>載入中…</div></main>
 <footer id="foot"></footer>
 <div id="layer"></div>
@@ -92,6 +94,31 @@ const layer = document.getElementById('layer');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* 記住這支手機：登入代碼存在本機瀏覽器；無法存取時本次有效 */
+/* ---------- 加速：手機記住上次的資料，打開先顯示，背景再更新 ---------- */
+const CKEY = 'cxy_visit_cache';
+function todayTW() { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' }); } catch (e) { return ''; } }
+function saveCache() {
+  try {
+    if (!S.token || !S.me) return;
+    localStorage.setItem(CKEY, JSON.stringify({ t: S.token.slice(-16), at: Date.now(), me: S.me, days: S.days }));
+  } catch (e) { /* 無痕模式等情況：不記也沒關係 */ }
+}
+function loadCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CKEY) || 'null');
+    if (!c || c.t !== S.token.slice(-16) || Date.now() - c.at > 86400000 || !c.me) return null;
+    if (c.days && (!c.days.length || c.days[0].date !== todayTW())) c.days = null; // 名額只用今天的
+    return c;
+  } catch (e) { return null; }
+}
+function clearCache() { try { localStorage.removeItem(CKEY); } catch (e) {} }
+function syncing(on) { const el = document.getElementById('sync'); if (el) el.classList.toggle('hide', !on); }
+/** 收到後端帶回的「我的資料＋名額」。 */
+function takeMe(me) {
+  S.me = me;
+  if (me && me.days) { S.days = me.days; delete me.days; }
+}
+
 function loadToken() { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } }
 function saveToken(t) { try { if (t) localStorage.setItem(KEY, t); else localStorage.removeItem(KEY); } catch (e) {} }
 
@@ -122,6 +149,19 @@ async function start() {
     api('info').then(setOrg).catch(() => {});
     S.me = null; render(); return;
   }
+  const c = loadCache();
+  if (c) {
+    // 先用上次的資料畫出來，背景再更新
+    S.me = c.me; S.days = c.days || null;
+    const ok = approved();
+    if (ok.length && !ok.some(b => b.bed === S.bed)) S.bed = ok[0].bed;
+    setOrg(S.me);
+    if (!ok.length || S.days) render();
+    syncing(true);
+    await reload(undefined, true);
+    syncing(false);
+    return;
+  }
   await reload();
 }
 
@@ -134,13 +174,17 @@ function setOrg(r) {
   if (lo) lo.onclick = logout;
 }
 
-async function reload(flash) {
+async function reload(flash, background) {
   if (flash !== undefined) S.flash = flash;
   try {
-    S.me = await api('me');
+    const r = await api('me', { withDays: true });
+    if (!r.days) S.days = null; // 後端是舊版：名額另外問
+    takeMe(r);
+    if (background) keep();
     await afterMe();
   } catch (e) {
-    if (e.code === 'LOGIN') { saveToken(''); S.token = ''; S.me = null; render(); return; }
+    if (e.code === 'LOGIN') { saveToken(''); clearCache(); S.token = ''; S.me = null; S.days = null; render(); return; }
+    if (background && S.me) { toast('網路不穩，畫面是上次的資料，請稍後重新整理'); return; }
     fatal(e.message);
   }
 }
@@ -149,7 +193,8 @@ async function afterMe() {
   setOrg(S.me);
   const ok = approved();
   if (ok.length && !ok.some(b => b.bed === S.bed)) S.bed = ok[0].bed;
-  if (ok.length && !S.days) S.days = (await api('availability')).days;
+  if (ok.length && !S.days) S.days = (await api('availability')).days; // 後端是舊版時才會走到這裡
+  saveCache();
   render();
 }
 
@@ -159,7 +204,7 @@ async function logout() {
   document.getElementById('lo_no').onclick = closeSheet;
   document.getElementById('lo_go').onclick = async () => {
     try { await api('logout'); } catch (e) {}
-    saveToken(''); S.token = ''; S.me = null; S.days = null; S.tab = 'book';
+    saveToken(''); clearCache(); S.token = ''; S.me = null; S.days = null; S.tab = 'book';
     closeSheet(); setOrg(null); render();
   };
 }
@@ -243,9 +288,9 @@ function formEvents(action) {
     }
     go.disabled = true; go.textContent = '送出中…';
     try {
-      const r = await api(action, { resident: v('f_res'), pid: v('f_pid'), family: v('f_fam'), relation: v('f_rel'), phone: v('f_tel') });
+      const r = await api(action, { resident: v('f_res'), pid: v('f_pid'), family: v('f_fam'), relation: v('f_rel'), phone: v('f_tel'), withDays: true });
       if (r.token) { S.token = r.token; saveToken(r.token); }
-      S.me = r; S.tab = 'book'; S.days = null;
+      S.days = null; takeMe(r); S.tab = 'book';
       S.flash = { type: r.status === '已核准' ? 'ok' : 'info', text: r.message };
       await afterMe();
     } catch (e) {
@@ -356,9 +401,10 @@ function bookEvents() {
     closeSheet();
     go.disabled = true; go.textContent = '預約中…';
     try {
-      const r = await api('book', { bed: S.bed, date: S.date, slot: S.slot, visitors: n.value, note: note.value.trim() });
+      const r = await api('book', { bed: S.bed, date: S.date, slot: S.slot, visitors: n.value, note: note.value.trim(), withMe: true });
       S.slot = ''; S.days = null; S.tab = 'mine';
-      await reload({ type: 'ok', text: '預約成功\n' + summary(r.booking) + (r.booking.lateHint ? '\n\n' + r.booking.lateHint : '') });
+      const flash = { type: 'ok', text: '預約成功\n' + summary(r.booking) + (r.booking.lateHint ? '\n\n' + r.booking.lateHint : '') };
+      if (r.me) { takeMe(r.me); S.flash = flash; await afterMe(); } else await reload(flash);
     } catch (e) {
       toast(e.message);
       try { S.days = (await api('availability')).days; } catch (x) {}
@@ -420,9 +466,10 @@ function cancelSheet(id) {
   go.onclick = async () => {
     go.disabled = true; go.textContent = '取消中…';
     try {
-      await api('cancel', { id: id });
+      const r = await api('cancel', { id: id, withMe: true });
       closeSheet(); S.days = null;
-      await reload({ type: 'ok', text: '已取消 ' + b.dateLabel + ' ' + b.slotLabel.slice(2) + ' 的預約' });
+      const flash = { type: 'ok', text: '已取消 ' + b.dateLabel + ' ' + b.slotLabel.slice(2) + ' 的預約' };
+      if (r.me) { takeMe(r.me); S.flash = flash; await afterMe(); } else await reload(flash);
     } catch (e) { closeSheet(); toast(e.message); }
   };
 }
@@ -430,7 +477,8 @@ function cancelSheet(id) {
 async function moveSheet(id) {
   const b = S.me.bookings.find(x => x.id === id);
   const st = { date: '', slot: '' };
-  try { S.days = (await api('availability')).days; } catch (e) { return toast(e.message); }
+  const fresh = api('availability').then(r => r.days);
+  if (!S.days) { try { S.days = await fresh; } catch (e) { return toast(e.message); } }
   st.date = firstOpenDate();
   const draw = () => {
     sheet('<h2>改期</h2><div class="hint">原預約：' + esc(b.dateLabel + ' ' + b.slotLabel.slice(2)) + '</div>' +
@@ -448,9 +496,10 @@ async function moveSheet(id) {
     const submit = async () => {
       sheet('<div class="center"><div class="spin"></div>改期中…</div>');
       try {
-        const r = await api('reschedule', { id: id, date: st.date, slot: st.slot });
+        const r = await api('reschedule', { id: id, date: st.date, slot: st.slot, withMe: true });
         closeSheet(); S.days = null;
-        await reload({ type: 'ok', text: '改期成功\n' + summary(r.booking) + (r.booking.lateHint ? '\n\n' + r.booking.lateHint : '') });
+        const flash = { type: 'ok', text: '改期成功\n' + summary(r.booking) + (r.booking.lateHint ? '\n\n' + r.booking.lateHint : '') };
+        if (r.me) { takeMe(r.me); S.flash = flash; await afterMe(); } else await reload(flash);
       } catch (e) { draw(); toast(e.message); }
     };
     go.onclick = () => {
@@ -460,6 +509,16 @@ async function moveSheet(id) {
     };
   };
   draw();
+  // 先用手上的名額畫出來，最新名額回來後再更新（使用者還在這個畫面才重畫）
+  fresh.then(days => {
+    S.days = days;
+    if (!document.getElementById('m_go')) return;
+    const d = days.find(x => x.date === st.date);
+    const s = d && d.slots.find(x => x.code === st.slot);
+    if (!d) st.date = firstOpenDate();
+    if (st.slot && !(s && s.bookable)) st.slot = '';
+    draw();
+  }).catch(() => {});
 }
 
 function hideToast() { const t = document.getElementById('toast'); if (t) t.classList.add('hide'); }
